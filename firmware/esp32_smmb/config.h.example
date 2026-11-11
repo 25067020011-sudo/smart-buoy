@@ -1,0 +1,46 @@
+#ifndef SMMB_CONFIG_H
+#define SMMB_CONFIG_H
+
+// ==========================================
+// KONFIGURASI PERANGKAT & JARINGAN
+// ==========================================
+#define DEVICE_ID           "SMMB-01"
+#define FIRMWARE_VERSION    "1.0.0"
+
+// Supabase Edge Function Ingest URL
+#define SUPABASE_INGEST_URL "https://<your-project-id>.supabase.co/functions/v1/ingest"
+// API Key Perangkat (harus cocok dengan sha256 di tabel devices)
+#define DEVICE_API_KEY      "secret123"
+
+// APN Operator Seluler (misal Telkomsel: "internet", By.U: "byu", dsb)
+#define GSM_APN             "internet"
+#define GSM_USER            ""
+#define GSM_PASS            ""
+
+// Interval Pengukuran (menit)
+#define SLEEP_INTERVAL_MIN  15
+
+// Batas tegangan baterai untuk mode hemat daya (Volt)
+#define BATT_LOW_THRESHOLD  11.80
+
+// ==========================================
+// PIN MAPPING (ESP32)
+// ==========================================
+#define PIN_TEMP_ONEWIRE    4   // DS18B20 OneWire Bus
+#define PIN_EC_ANALOG       34  // Probe EC / Konduktivitas (ADC1)
+#define PIN_TURB_ANALOG     35  // Sensor Turbidity (ADC1)
+#define PIN_PH_ANALOG       32  // Probe pH (Opsional)
+#define PIN_LEAK_SENSOR     27  // Sensor Kebocoran Air (Digital In / Pullup)
+#define PIN_BATT_ADC        33  // Pembagi Tegangan Baterai 12V (ADC1)
+
+#define PIN_SD_CS           5   // MicroSD SPI Chip Select
+#define PIN_PWR_SENSORS     12  // MOSFET Switch Daya Sensor (Active HIGH)
+#define PIN_PWR_MODEM       14  // MOSFET Switch Daya Modul 4G (Active HIGH)
+
+// Serial Modul 4G & GPS
+#define MODEM_RX            16
+#define MODEM_TX            17
+#define MODEM_BAUD          115200
+
+#endif // SMMB_CONFIG_H
+

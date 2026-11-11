@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Streamlit secrets (JANGAN PERNAH COMMIT SECRETS!)
+.streamlit/secrets.toml
+
+# OS generated files
+.DS_Store
+ehthumbs.db
+Thumbs.db
+
+# Arduino / PlatformIO
+.pio/
+.vscode/
+*.hex
+*.bin
+config.h
+

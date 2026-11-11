@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMMB Dashboard — Mockup UI</title>
+<style>
+  :root{
+    --primary:#0B5D7A;--primary-soft:#E3F1F6;--bg:#F7F9FA;--surface:#fff;--border:#DDE3E7;
+    --text:#1B2730;--muted:#5F6E78;--good:#1E8E5A;--warn:#C98A0B;--crit:#C2412D;--none:#9AA5AD;
+    --temp:#D9622B;--sal:#1F6FB2;--turb:#8A6A3D;--ph:#7A4FB5;--do:#1E9A8A;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Source Sans 3","Source Sans Pro",system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);font-size:15px}
+  .app{display:flex;min-height:100vh}
+  aside{width:232px;background:var(--surface);border-right:1px solid var(--border);padding:20px 12px;flex-shrink:0}
+  .brand{display:flex;gap:10px;align-items:center;padding:0 8px 20px}
+  .logo{width:34px;height:34px;border-radius:50%;background:#F2C230;border:3px solid var(--primary);position:relative}
+  .logo:after{content:"";position:absolute;left:50%;top:-10px;width:2px;height:10px;background:var(--primary)}
+  .brand b{display:block;font-size:16px}.brand small{color:var(--muted);font-size:12px}
+  nav button{display:flex;width:100%;gap:10px;align-items:center;border:0;background:none;text-align:left;padding:10px 12px;border-radius:8px;font:inherit;color:var(--text);cursor:pointer;margin-bottom:2px}
+  nav button:hover{background:var(--bg)}
+  nav button.active{background:var(--primary-soft);color:var(--primary);font-weight:600}
+  nav .ic{width:18px;text-align:center}
+  .user{margin-top:24px;padding:12px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)}
+  .user select{width:100%;margin-top:6px;padding:6px;border:1px solid var(--border);border-radius:6px;font:inherit}
+  main{flex:1;padding:24px 32px;min-width:0}
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+  h1{font-size:24px;margin:0;font-weight:600}
+  h2{font-size:18px;margin:0 0 12px;font-weight:600}
+  .sub{color:var(--muted);font-size:13px}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid}
+  .b-good{color:var(--good);border-color:#BFE3CF;background:#EEF8F2}
+  .b-warn{color:var(--warn);border-color:#EDD7A6;background:#FDF6E7}
+  .b-crit{color:var(--crit);border-color:#EFC3BA;background:#FBEFEC}
+  .b-none{color:#6B7780;border-color:var(--border);background:#F1F3F4}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}
+  .alert{display:flex;justify-content:space-between;align-items:center;gap:12px;border-left:4px solid var(--crit);margin-bottom:16px;flex-wrap:wrap}
+  .alert b{color:var(--crit)}
+  .btn{border:1px solid var(--primary);background:var(--primary);color:#fff;padding:8px 14px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer}
+  .btn.ghost{background:#fff;color:var(--primary)}
+  .grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid21{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+  .pcard .name{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .pcard .val{font-size:28px;font-weight:600;margin:6px 0 2px;font-variant-numeric:tabular-nums}
+  .pcard .val small{font-size:14px;color:var(--muted);font-weight:400}
+  .pcard .meta{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+  .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bg);font-size:14px}
+  .row:last-child{border:0}.row span:first-child{color:var(--muted)}
+  .bar{height:12px;background:#EEF1F3;border-radius:6px;overflow:hidden;margin:10px 0 6px}
+  .bar i{display:block;height:100%;background:var(--good)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .chip{padding:6px 12px;border:1px solid var(--border);border-radius:999px;background:#fff;font:inherit;font-size:13px;cursor:pointer}
+  .chip.on{border-color:var(--primary);background:var(--primary-soft);color:var(--primary);font-weight:600}
+  svg text{font-family:inherit}
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:6px;flex-wrap:wrap}
+  table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:8px;border-bottom:1px solid var(--border)}
+  td{padding:8px;border-bottom:1px solid var(--bg)}
+  .form{max-width:420px}
+  .form label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px}
+  .form input,.form select,.form textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;min-height:44px}
+  .seg{display:flex;gap:6px;flex-wrap:wrap}
+  .seg button{flex:1;min-width:44px;min-height:44px;border:1px solid var(--border);background:#fff;border-radius:8px;font:inherit;cursor:pointer}
+  .seg button.on{border-color:var(--primary);background:var(--primary-soft);color:var(--primary);font-weight:600}
+  .btn.full{width:100%;min-height:48px;margin-top:20px}
+  .demo{font-size:12px;color:var(--muted);background:#FFF;border:1px dashed var(--border);padding:4px 10px;border-radius:6px}
+  .page{display:none}.page.active{display:block}
+  .stat{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+  @media (max-width:900px){
+    .app{flex-direction:column}aside{width:auto;border-right:0;border-bottom:1px solid var(--border);padding:12px}
+    nav{display:flex;overflow-x:auto;gap:4px}nav button{white-space:nowrap;width:auto}
+    .user,.brand small{display:none}.brand{padding-bottom:8px}
+    main{padding:16px}.grid5{grid-template-columns:1fr 1fr}.grid2,.grid21{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand"><div class="logo"></div><div><b>SMMB</b><small>Smart Marine Monitoring Buoy</small></div></div>
+    <nav id="nav">
+      <button data-p="overview" class="active"><span class="ic">◉</span>Overview</button>
+      <button data-p="parameter"><span class="ic">∿</span>Parameter</button>
+      <button data-p="peta"><span class="ic">⌖</span>Peta</button>
+      <button data-p="riwayat" data-roles="admin researcher supervisor"><span class="ic">⇩</span>Riwayat &amp; Unduh</button>
+      <button data-p="validasi"><span class="ic">✓</span>Validasi &amp; Kalibrasi</button>
+      <button data-p="maintenance" data-roles="admin researcher technician"><span class="ic">✎</span>Maintenance</button>
+      <button data-p="admin" data-roles="admin"><span class="ic">⚙</span>Admin</button>
+    </nav>
+    <div class="user">Masuk sebagai
+      <select id="role">
+        <option value="researcher">Researcher</option>
+        <option value="technician">Technician</option>
+        <option value="supervisor">Supervisor</option>
+        <option value="admin">Administrator</option>
+      </select>
+      <div style="margin-top:8px">Ganti role untuk melihat menu yang berbeda.</div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div><h1 id="title">Overview</h1><div class="sub">SMMB-01 · Pesisir Wonorejo · waktu dalam WIB</div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="badge b-good">● Online · data 4 menit lalu</span>
+        <span class="demo">Mockup · data contoh</span>
+      </div>
+    </div>
+
+    <!-- OVERVIEW -->
+    <section class="page active" id="overview">
+      <div class="card alert">
+        <div><b>■ Alarm: Baterai 11,7 V di bawah ambang 11,8 V</b><div class="sub">01 Mar 2027, 08:45 WIB · belum ditangani</div></div>
+        <div style="display:flex;gap:8px"><button class="btn ghost">Lihat detail</button><button class="btn">Saya tangani</button></div>
+      </div>
+      <div class="grid5">
+        <div class="card pcard"><div class="name"><span class="dot" style="background:var(--temp)"></span>Suhu</div><div class="val">30,4 <small>°C</small></div><div class="meta"><span>↑ 0,3 / 1 jam</span><span class="badge b-good">● Lolos</span></div></div>
+        <div class="card pcard"><div class="name"><span class="dot" style="background:var(--sal)"></span>Salinitas</div><div class="val">28,6 <small>PSU</small></div><div class="meta"><span>↓ 0,8 / 1 jam</span><span class="badge b-good">● Lolos</span></div></div>
+        <div class="card pcard"><div class="name"><span class="dot" style="background:var(--turb)"></span>Turbidity</div><div class="val">35,2 <small>NTU</small></div><div class="meta"><span>↑ 4,1 / 1 jam</span><span class="badge b-warn">▲ Suspect</span></div></div>
+        <div class="card pcard"><div class="name"><span class="dot" style="background:var(--ph)"></span>pH</div><div class="val">8,02</div><div class="meta"><span>stabil</span><span class="badge b-good">● Lolos</span></div></div>
+        <div class="card pcard"><div class="name"><span class="dot" style="background:var(--do)"></span>DO</div><div class="val">6,1 <small>mg/L</small></div><div class="meta"><span>3 hari lalu</span><span class="badge b-none">○ Manual</span></div></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><h2>Kesehatan perangkat</h2>
+          <svg viewBox="0 0 320 62" width="100%" height="62" aria-label="Tegangan baterai 72 jam"><polyline id="battLine" fill="none" stroke="var(--primary)" stroke-width="2"/><line x1="0" x2="320" y1="46" y2="46" stroke="var(--crit)" stroke-dasharray="4 4"/><text x="2" y="58" font-size="10" fill="var(--crit)">ambang 11,8 V</text></svg>
+          <div class="row"><span>Baterai</span><span>12,4 V · tren 72 jam di atas</span></div>
+          <div class="row"><span>Sinyal 4G</span><span>−79 dBm <span class="badge b-good">● Baik</span></span></div>
+          <div class="row"><span>Enclosure</span><span>36 °C · 58 % RH · kering</span></div>
+          <div class="row"><span>Posisi</span><span>12 m dari titik tambat <span class="badge b-good">● Dalam geofence</span></span></div>
+        </div>
+        <div class="card"><h2>Ketersediaan data · 30 hari</h2>
+          <div class="stat">93,1 %</div><div class="bar"><i style="width:93.1%"></i></div>
+          <div class="sub">Target ≥ 90 % · <span style="color:var(--good);font-weight:600">● tercapai</span></div>
+          <div style="margin-top:16px">
+            <div class="row"><span>Record diterima</span><span>2.681 dari 2.880</span></div>
+            <div class="row"><span>Kunjungan terakhir</span><span>26 Feb 2027 · 3 hari lalu</span></div>
+            <div class="row"><span>Kalibrasi aktif</span><span>12 Feb 2027</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PARAMETER -->
+    <section class="page" id="parameter">
+      <div class="card" style="margin-bottom:16px">
+        <div class="chips"><button class="chip">24 jam</button><button class="chip on">7 hari</button><button class="chip">30 hari</button><button class="chip">Kustom…</button></div>
+        <div class="chips" style="margin:0"><span class="sub" style="align-self:center">Penanda:</span><button class="chip on">▲ Suspect / ■ Gagal</button><button class="chip on">│ Kunjungan</button><button class="chip">Pasang surut (fase 2)</button></div>
+      </div>
+      <div class="card" style="margin-bottom:16px"><h2>Salinitas <span class="sub">(PSU)</span></h2><svg id="chSal" viewBox="0 0 900 200" width="100%"></svg></div>
+      <div class="card" style="margin-bottom:16px"><h2>Turbidity <span class="sub">(NTU)</span></h2><svg id="chTurb" viewBox="0 0 900 200" width="100%"></svg></div>
+      <div class="card"><h2>Suhu <span class="sub">(°C)</span></h2><svg id="chTemp" viewBox="0 0 900 200" width="100%"></svg>
+        <div class="legend"><span>━ nilai lolos QC</span><span style="color:var(--warn)">▲ suspect</span><span style="color:var(--crit)">■ gagal (tidak dipakai)</span><span>│ kunjungan lapangan</span><span>celah = data tidak ada</span></div>
+      </div>
+    </section>
+
+    <!-- PETA -->
+    <section class="page" id="peta">
+      <div class="grid21">
+        <div class="card"><h2>Posisi buoy</h2>
+          <svg viewBox="0 0 600 380" width="100%" aria-label="Peta skematis posisi buoy">
+            <rect width="600" height="380" fill="#E6F0F4" rx="8"/>
+            <path d="M0 0 H600 V70 C480 95 380 60 300 85 C200 115 110 70 0 95 Z" fill="#CFE3C8"/>
+            <text x="20" y="40" font-size="13" fill="#4A6B47">Kawasan mangrove (skematis)</text>
+            <circle cx="300" cy="230" r="90" fill="rgba(11,93,122,.06)" stroke="var(--primary)" stroke-dasharray="6 5"/>
+            <text x="300" y="132" text-anchor="middle" font-size="12" fill="var(--primary)">geofence 50 m</text>
+            <polyline points="290,240 296,232 305,236 312,226 306,220 300,224 310,218" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="2 3"/>
+            <g stroke="var(--text)" stroke-width="2"><line x1="292" y1="230" x2="308" y2="230"/><line x1="300" y1="222" x2="300" y2="238"/></g>
+            <text x="270" y="256" font-size="12" fill="var(--text)">titik tambat</text>
+            <circle cx="310" cy="218" r="8" fill="var(--good)" stroke="#fff" stroke-width="2"/>
+            <text x="324" y="214" font-size="12" font-weight="600" fill="var(--text)">posisi terakhir</text>
+            <text x="16" y="366" font-size="11" fill="var(--muted)">Mockup skematis. Implementasi: Folium + OpenStreetMap.</text>
+          </svg>
+        </div>
+        <div class="card"><h2>Ringkasan posisi</h2>
+          <div class="row"><span>Waktu</span><span>08:45 WIB</span></div>
+          <div class="row"><span>Jarak dari tambat</span><span>12 m</span></div>
+          <div class="row"><span>Status</span><span class="badge b-good">● Dalam geofence</span></div>
+          <div class="row"><span>Pergeseran maks 24 jam</span><span>18 m</span></div>
+          <div class="chips" style="margin-top:14px"><button class="chip on">24 jam</button><button class="chip">7 hari</button><button class="chip">30 hari</button></div>
+          <div class="sub">Koordinat presisi hanya untuk pengguna login.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIWAYAT -->
+    <section class="page" id="riwayat">
+      <div class="card" style="margin-bottom:16px">
+        <div class="grid2" style="grid-template-columns:repeat(4,1fr)">
+          <div><div class="sub">Dari</div><b>01 Mar 2027</b></div><div><div class="sub">Sampai</div><b>31 Mar 2027</b></div>
+          <div><div class="sub">Parameter</div><b>Semua</b></div><div><div class="sub">Filter QC</div><b>Semua + kolom flag</b></div>
+        </div>
+      </div>
+      <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px"><h2 style="margin:0">Pratinjau · 20 dari 2.976 baris</h2><button class="btn">⇩ Unduh CSV + README</button></div>
+        <div style="overflow-x:auto"><table id="tbl"><thead><tr><th>Waktu (WIB)</th><th>Suhu °C</th><th>Salinitas PSU</th><th>Turbidity NTU</th><th>pH</th><th>QC</th><th>Kalibrasi</th></tr></thead><tbody></tbody></table></div>
+        <div class="sub" style="margin-top:10px">Nama file: SMMB-01_2027-03-01_2027-03-31_qc-all.csv</div>
+      </div>
+    </section>
+
+    <!-- VALIDASI -->
+    <section class="page" id="validasi">
+      <div class="chips"><button class="chip on">Salinitas</button><button class="chip">Turbidity</button><button class="chip">Suhu</button><button class="chip">pH</button></div>
+      <div class="grid21" style="margin-bottom:16px">
+        <div class="card"><h2>Sensor vs referensi</h2><svg id="scatter" viewBox="0 0 420 300" width="100%"></svg></div>
+        <div class="card"><h2>Ringkasan 30 hari</h2>
+          <div class="row"><span>Jumlah pasangan</span><span>n = 6</span></div>
+          <div class="row"><span>Bias</span><span>+0,4 PSU</span></div>
+          <div class="row"><span>RMSE</span><span>0,7 PSU</span></div>
+          <div class="row"><span>R²</span><span>0,94</span></div>
+          <div class="row"><span>Status</span><span class="badge b-good">● Dalam batas ±1 PSU</span></div>
+          <div class="row"><span>Kalibrasi berikutnya</span><span>± 12 Mar 2027</span></div>
+        </div>
+      </div>
+      <div class="card"><h2>Selisih sensor − referensi vs umur deployment</h2><svg id="drift" viewBox="0 0 900 220" width="100%"></svg>
+        <div class="legend"><span>Warna titik = skor fouling:</span><span style="color:var(--good)">● 0–1</span><span style="color:var(--warn)">● 2</span><span style="color:var(--crit)">● 3–4</span><span>│ kalibrasi ulang</span></div>
+      </div>
+    </section>
+
+    <!-- MAINTENANCE -->
+    <section class="page" id="maintenance">
+      <div class="grid2">
+        <div class="card form"><h2>Kunjungan baru</h2>
+          <label>Waktu</label><input value="11 Mar 2027, 09:10 WIB">
+          <label>Fase pasang surut</label><div class="seg"><button class="on">Naik</button><button>Pasang</button><button>Turun</button><button>Surut</button></div>
+          <label>Cuaca</label><select><option>Cerah</option><option>Berawan</option><option>Hujan</option></select>
+          <label>Aktivitas</label><div class="seg"><button class="on">Bersih</button><button class="on">Ukur ref</button><button>Kalibrasi</button><button>Perbaikan</button></div>
+          <label>Skor fouling (0 = bersih, 4 = tertutup)</label><div class="seg"><button>0</button><button>1</button><button class="on">2</button><button>3</button><button>4</button></div>
+          <label>Foto</label><button class="btn ghost" style="width:100%;min-height:44px">📷 Ambil / unggah foto</button>
+          <label>Catatan</label><textarea rows="2" placeholder="Opsional"></textarea>
+          <button class="btn full">SIMPAN KUNJUNGAN</button>
+        </div>
+        <div>
+          <div class="card form" style="margin-bottom:16px"><h2>Pengukuran referensi</h2>
+            <label>Parameter</label><select><option>Salinitas (PSU)</option><option>Turbidity (NTU)</option><option>Suhu (°C)</option><option>pH</option><option>DO (mg/L)</option></select>
+            <label>Nilai</label><input value="28,2" inputmode="decimal">
+            <label>Alat</label><select><option>Lutron WAC-2019SD #01</option><option>Alat lab ITS</option></select>
+            <div class="card" style="margin-top:14px;background:#EEF8F2;border-color:#BFE3CF"><b style="color:var(--good)">● Tersimpan.</b> Selisih dengan sensor: +0,4 PSU (dalam batas ±1 PSU).</div>
+          </div>
+          <div class="card"><h2>Kunjungan terakhir</h2>
+            <div class="row"><span>26 Feb 2027</span><span>Bersih · Ukur ref · fouling 2</span></div>
+            <div class="row"><span>12 Feb 2027</span><span>Kalibrasi · fouling 3</span></div>
+            <div class="row"><span>29 Jan 2027</span><span>Bersih · fouling 1</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADMIN -->
+    <section class="page" id="admin">
+      <div class="chips"><button class="chip">Pengguna</button><button class="chip">Perangkat</button><button class="chip on">QC &amp; Alarm</button></div>
+      <div class="card"><h2>Ambang QC · gross range</h2>
+        <table><thead><tr><th>Parameter</th><th>Min</th><th>Max</th><th>Satuan</th><th>Aktif</th></tr></thead><tbody>
+          <tr><td>Suhu</td><td>20</td><td>40</td><td>°C</td><td>●</td></tr>
+          <tr><td>EC</td><td>0</td><td>70</td><td>mS/cm</td><td>●</td></tr>
+          <tr><td>Salinitas</td><td>0</td><td>40</td><td>PSU</td><td>●</td></tr>
+          <tr><td>Turbidity</td><td>0</td><td>1000</td><td>NTU</td><td>●</td></tr>
+          <tr><td>pH</td><td>6,0</td><td>9,5</td><td>pH</td><td>●</td></tr>
+          <tr><td>DO</td><td>0</td><td>15</td><td>mg/L</td><td>●</td></tr>
+        </tbody></table>
+        <div class="sub" style="margin-top:10px">Setiap perubahan meminta konfirmasi dan dicatat (siapa, kapan, nilai lama → baru).</div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const titles={overview:"Overview",parameter:"Parameter",peta:"Peta",riwayat:"Riwayat & Unduh",validasi:"Validasi & Kalibrasi",maintenance:"Maintenance",admin:"Admin"};
+const navBtns=[...document.querySelectorAll('#nav button')];
+function show(p){navBtns.forEach(b=>b.classList.toggle('active',b.dataset.p===p));document.querySelectorAll('.page').forEach(s=>s.classList.toggle('active',s.id===p));document.getElementById('title').textContent=titles[p];}
+navBtns.forEach(b=>b.onclick=()=>show(b.dataset.p));
+document.getElementById('role').onchange=e=>{const r=e.target.value;let cur=document.querySelector('#nav .active').dataset.p;navBtns.forEach(b=>{const ok=!b.dataset.roles||b.dataset.roles.split(' ').includes(r);b.style.display=ok?'':'none';if(!ok&&b.dataset.p===cur)cur='overview';});show(cur);};
+document.querySelectorAll('.chips,.seg').forEach(g=>g.addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')return;if(g.classList.contains('seg')&&g.previousElementSibling&&g.previousElementSibling.textContent==='Aktivitas'){e.target.classList.toggle('on');return;}g.querySelectorAll('button').forEach(b=>b.classList.remove('on'));e.target.classList.add('on');}));
+
+/* Data contoh deterministik: 7 hari, 15 menit */
+const N=672;
+function series(base,amp,noise,trend){const a=[];for(let i=0;i<N;i++){const t=i/96;a.push(base+amp*Math.sin(2*Math.PI*t/0.517)+0.35*amp*Math.sin(2*Math.PI*t)+noise*Math.sin(i*12.9898)%1+trend*t);}return a;}
+const gap=[300,330];
+const sal=series(28,2.2,0.5,0),turb=series(30,9,4,1.2),temp=series(29.8,0.6,0.15,0.05);
+const visits=[180,520];
+function chart(id,data,color,suspect,fail){
+  const svg=document.getElementById(id),W=900,H=200,L=44,R=12,T=10,B=26;
+  const v=data.filter((_,i)=>!(i>=gap[0]&&i<gap[1])&&!fail.includes(i));
+  const lo=Math.floor(Math.min(...v)),hi=Math.ceil(Math.max(...v));
+  const x=i=>L+(W-L-R)*i/(N-1),y=d=>T+(H-T-B)*(1-(d-lo)/(hi-lo||1));
+  let s='';
+  for(let k=0;k<=4;k++){const d=lo+(hi-lo)*k/4;s+=`<line x1="${L}" x2="${W-R}" y1="${y(d)}" y2="${y(d)}" stroke="#EEF1F3"/><text x="${L-6}" y="${y(d)+4}" font-size="11" text-anchor="end" fill="#5F6E78">${d.toFixed(1).replace('.',',')}</text>`;}
+  for(let dd=0;dd<7;dd++){const i=Math.min(N-1,dd*96);s+=`<text x="${x(i)}" y="${H-6}" font-size="11" text-anchor="middle" fill="#5F6E78">${dd+1} Mar</text>`;}
+  visits.forEach(i=>s+=`<line x1="${x(i)}" x2="${x(i)}" y1="${T}" y2="${H-B}" stroke="#5F6E78" stroke-width="1" stroke-dasharray="3 3"/>`);
+  let path='',pen=false;
+  data.forEach((d,i)=>{if((i>=gap[0]&&i<gap[1])||fail.includes(i)||suspect.includes(i)){pen=false;return;}path+=(pen?'L':'M')+x(i).toFixed(1)+' '+y(d).toFixed(1);pen=true;});
+  s+=`<path d="${path}" fill="none" stroke="${color}" stroke-width="1.6"/>`;
+  s+=`<text x="${(x(gap[0])+x(gap[1]))/2}" y="${T+14}" font-size="11" text-anchor="middle" fill="#9AA5AD">tidak ada data</text>`;
+  suspect.forEach(i=>{const cx=x(i),cy=y(data[i]);s+=`<path d="M${cx} ${cy-6} L${cx+6} ${cy+5} L${cx-6} ${cy+5}Z" fill="#C98A0B"/>`;});
+  fail.forEach(i=>{const cx=x(i);s+=`<rect x="${cx-5}" y="${T}" width="10" height="10" fill="#C2412D"/><text x="${cx+9}" y="${T+9}" font-size="10" fill="#C2412D">di luar rentang</text>`;});
+  svg.innerHTML=s;
+}
+chart('chSal',sal,'#1F6FB2',[410],[]);
+chart('chTurb',turb,'#8A6A3D',[150,151,600],[455]);
+chart('chTemp',temp,'#D9622B',[],[]);
+
+/* Baterai 72 jam */
+(function(){let p='';for(let i=0;i<=72;i++){const v=12.4+0.5*Math.sin(2*Math.PI*(i-6)/24)-0.004*i;p+=`${(i/72*318).toFixed(1)},${(46-(v-11.6)*28).toFixed(1)} `;}document.getElementById('battLine').setAttribute('points',p);})();
+
+/* Tabel pratinjau */
+(function(){const tb=document.querySelector('#tbl tbody');let h='';for(let k=0;k<8;k++){const i=k;const hh=String(Math.floor(k*15/60)).padStart(2,'0'),mm=String(k*15%60).padStart(2,'0');const susp=k===5;h+=`<tr><td>01 Mar 2027 ${hh}:${mm}</td><td>${temp[i].toFixed(2).replace('.',',')}</td><td>${sal[i].toFixed(2).replace('.',',')}</td><td>${turb[i].toFixed(1).replace('.',',')}</td><td>8,0${k%3}</td><td>${susp?'<span class="badge b-warn">▲ 3</span>':'<span class="badge b-good">● 1</span>'}</td><td>cal-2027-02-12</td></tr>`;}tb.innerHTML=h;})();
+
+/* Scatter validasi */
+(function(){const pts=[[24.1,24.6],[26.0,26.2],[27.3,27.9],[28.2,28.6],[29.5,30.1],[31.0,31.2]];const L=44,B=34,W=420,H=300,lo=23,hi=32;const x=d=>L+(W-L-14)*(d-lo)/(hi-lo),y=d=>H-B-(H-B-12)*(d-lo)/(hi-lo);let s=`<line x1="${x(lo)}" y1="${y(lo)}" x2="${x(hi)}" y2="${y(hi)}" stroke="#9AA5AD" stroke-dasharray="4 4"/><text x="${x(lo+1.2)}" y="${y(lo+0.3)}" font-size="11" fill="#5F6E78">garis 1:1</text>`;for(let d=24;d<=32;d+=2){s+=`<text x="${x(d)}" y="${H-14}" font-size="11" text-anchor="middle" fill="#5F6E78">${d}</text><text x="${L-6}" y="${y(d)+4}" font-size="11" text-anchor="end" fill="#5F6E78">${d}</text>`;}s+=`<text x="${(L+W)/2}" y="${H}" font-size="11" text-anchor="middle" fill="#5F6E78">Referensi (PSU)</text><text x="12" y="${H/2}" font-size="11" fill="#5F6E78" transform="rotate(-90 12 ${H/2})" text-anchor="middle">Sensor (PSU)</text>`;pts.forEach(p=>s+=`<circle cx="${x(p[0])}" cy="${y(p[1])}" r="6" fill="#1F6FB2" fill-opacity=".85"/>`);document.getElementById('scatter').innerHTML=s;})();
+
+/* Drift vs umur deployment */
+(function(){const pts=[[3,0.1,0],[10,0.3,1],[17,0.6,2],[24,0.9,3],[28,0.05,0],[35,0.25,1],[42,0.55,2],[49,1.1,3],[56,0.1,0],[63,0.4,2]];const cal=[27,55];const W=900,H=220,L=50,B=30,T=10;const x=d=>L+(W-L-14)*d/70,y=v=>T+(H-T-B)*(1-(v+0.4)/1.8);const col=f=>f<=1?'#1E8E5A':f===2?'#C98A0B':'#C2412D';let s='';[-0.4,0,0.5,1,1.4].forEach(v=>s+=`<line x1="${L}" x2="${W-14}" y1="${y(v)}" y2="${y(v)}" stroke="${v===0?'#9AA5AD':'#EEF1F3'}"/><text x="${L-6}" y="${y(v)+4}" font-size="11" text-anchor="end" fill="#5F6E78">${String(v).replace('.',',')}</text>`);s+=`<line x1="${L}" x2="${W-14}" y1="${y(1)}" y2="${y(1)}" stroke="#C2412D" stroke-dasharray="4 4"/><text x="${W-16}" y="${y(1)-5}" font-size="11" text-anchor="end" fill="#C2412D">batas +1 PSU</text>`;cal.forEach(c=>s+=`<line x1="${x(c)}" x2="${x(c)}" y1="${T}" y2="${H-B}" stroke="#5F6E78" stroke-dasharray="3 3"/>`);for(let d=0;d<70;d+=10)s+=`<text x="${x(d)}" y="${H-10}" font-size="11" text-anchor="middle" fill="#5F6E78">hari ${d}</text>`;pts.forEach(p=>s+=`<circle cx="${x(p[0])}" cy="${y(p[1])}" r="6" fill="${col(p[2])}"/>`);document.getElementById('drift').innerHTML=s;})();
+</script>
+</body>
+</html>
