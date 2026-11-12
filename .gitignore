@@ -23,3 +23,9 @@ Thumbs.db
 *.bin
 config.h
 
+# Cloned upstream reference repos & output
+streamlit/
+supabase/
+audit_out/
+
+

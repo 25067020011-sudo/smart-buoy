@@ -3,6 +3,13 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 serve(async (req) => {
   try {
     const telegramToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
@@ -16,7 +23,7 @@ serve(async (req) => {
     }
 
     const payload = await req.json();
-    const record = payload.record; // Row from alerts table
+    const record = payload.record;
 
     if (!record) {
       return new Response("No alert record in payload", { status: 400 });
@@ -24,25 +31,25 @@ serve(async (req) => {
 
     const icon =
       record.type === "leak"
-        ? "🚨 AIR LAUT BOCOR!"
+        ? "🚨 <b>AIR LAUT BOCOR!</b>"
         : record.type === "geofence"
-        ? "⚓ BUOY HANYUT / KELUAR GEOFENCE!"
+        ? "⚓ <b>BUOY HANYUT / KELUAR GEOFENCE!</b>"
         : record.type === "battery_low"
-        ? "🪫 BATERAI LEMAH!"
+        ? "🪫 <b>BATERAI LEMAH!</b>"
         : record.type === "no_data"
-        ? "⚠️ DATA TERHENTI > 60 MENIT"
-        : "⚠️ ALARM PERINGATAN";
+        ? "⚠️ <b>DATA TERHENTI &gt; 60 MENIT</b>"
+        : "⚠️ <b>ALARM PERINGATAN</b>";
 
     const text = `
 ${icon}
 ━━━━━━━━━━━━━━━━━━━━
-📍 *Perangkat:* \`${record.device_id}\`
-🚨 *Jenis Alarm:* *${record.type}*
-📝 *Pesan:* ${record.message}
-⏱ *Waktu (UTC):* ${record.triggered_at}
-${record.trigger_value ? `📊 *Nilai Pemicu:* ${record.trigger_value}` : ""}
+📍 <b>Perangkat:</b> <code>${escapeHtml(record.device_id)}</code>
+🚨 <b>Jenis Alarm:</b> <b>${escapeHtml(record.type)}</b>
+📝 <b>Pesan:</b> ${escapeHtml(record.message)}
+⏱ <b>Waktu (UTC):</b> ${escapeHtml(record.triggered_at)}
+${record.trigger_value ? `📊 <b>Nilai Pemicu:</b> ${escapeHtml(String(record.trigger_value))}` : ""}
 ━━━━━━━━━━━━━━━━━━━━
-_Harap segera cek dashboard monitoring atau lakukan inspeksi lapangan!_
+<i>Harap segera cek dashboard monitoring atau lakukan inspeksi lapangan!</i>
     `.trim();
 
     const telegramUrl = `https://api.telegram.org/bot${telegramToken}/sendMessage`;
@@ -52,11 +59,18 @@ _Harap segera cek dashboard monitoring atau lakukan inspeksi lapangan!_
       body: JSON.stringify({
         chat_id: defaultChatId,
         text: text,
-        parse_mode: "Markdown",
+        parse_mode: "HTML",
       }),
     });
 
     const resJson = await res.json();
+    if (!res.ok) {
+      return new Response(JSON.stringify(resJson), {
+        status: 502,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify(resJson), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -68,4 +82,3 @@ _Harap segera cek dashboard monitoring atau lakukan inspeksi lapangan!_
     });
   }
 });
-

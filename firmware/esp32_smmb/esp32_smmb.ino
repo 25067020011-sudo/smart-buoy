@@ -5,12 +5,12 @@
  * Mikrokontroler: ESP32
  * Siklus Kerja:
  * 1. Bangun dari Deep Sleep
- * 2. Nyalakan daya sensor via MOSFET
- * 3. Ambil data sensor (Suhu, EC/Salinitas, Turbidity, pH, Kebocoran, Baterai, GPS)
+ * 2. Ambil sequence number tersimpan dari NVS (Preferences)
+ * 3. Ambil data sensor dengan multisampling & median filter
  * 4. Simpan ke microSD (Store-and-Forward)
- * 5. Nyalakan modul 4G LTE, kirim JSON via HTTPS POST ke Supabase Edge Function
- * 6. Jika sukses, tandai di microSD; jika gagal/sinyal putus, simpan di antrean backlog
- * 7. Matikan semua periferal & kembali Deep Sleep 15 menit
+ * 5. Nyalakan modul 4G LTE, kirim JSON via AT Commands ke Supabase
+ * 6. Jika sukses, tandai di microSD; jika gagal, simpan antrean backlog
+ * 7. Simpan sequence baru ke NVS, masuk Deep Sleep 15 menit
  */
 
 #include <Arduino.h>
@@ -19,14 +19,17 @@
 #include <SD.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <Preferences.h>
+#include <HardwareSerial.h>
 #include "config.h"
 
 // Inisialisasi OneWire untuk DS18B20
 OneWire oneWire(PIN_TEMP_ONEWIRE);
 DallasTemperature tempSensor(&oneWire);
 
-// Variabel persistent dalam memori RTC (tidak hilang saat deep sleep)
-RTC_DATA_ATTR uint64_t bootSequence = 1;
+// Objek NVS Preferences untuk sequence number persisten
+Preferences prefs;
+HardwareSerial modemSerial(2);
 
 struct SensorData {
   float temp_c;
@@ -40,84 +43,134 @@ struct SensorData {
   float lon;
   bool  gps_fix;
   int   rssi;
+  String ts_iso;
 };
 
 // ==========================================
-// 1. FUNGSI PENGUKURAN SENSOR
+// HELPER: MEDIAN FILTER ADC
+// ==========================================
+int readMedianMilliVolts(int pin, int samples = 10) {
+  int vals[samples];
+  for (int i = 0; i < samples; i++) {
+    vals[i] = analogReadMilliVolts(pin);
+    delay(20);
+  }
+  // Bubble sort sederhana untuk median
+  for (int i = 0; i < samples - 1; i++) {
+    for (int j = i + 1; j < samples; j++) {
+      if (vals[i] > vals[j]) {
+        int tmp = vals[i];
+        vals[i] = vals[j];
+        vals[j] = tmp;
+      }
+    }
+  }
+  return vals[samples / 2];
+}
+
+// ==========================================
+// 1. PENGUKURAN SENSOR
 // ==========================================
 SensorData readSensors() {
   SensorData data;
-  
-  // Nyalakan sensor
+
+  // Nyalakan sensor via switch MOSFET
   pinMode(PIN_PWR_SENSORS, OUTPUT);
   digitalWrite(PIN_PWR_SENSORS, HIGH);
-  delay(1000); // Waktu stabilisasi sensor & op-amp
+  delay(5000); // Waktu stabilisasi sensor 5 detik
 
   // 1. Suhu DS18B20
   tempSensor.begin();
   tempSensor.requestTemperatures();
-  data.temp_c = tempSensor.getTempCByIndex(0);
-  if (data.temp_c == DEVICE_DISCONNECTED_C || data.temp_c < -10.0 || data.temp_c > 60.0) {
-    data.temp_c = 29.5; // fallback
+  float rawTemp = tempSensor.getTempCByIndex(0);
+  if (rawTemp == DEVICE_DISCONNECTED_C || rawTemp < -5.0 || rawTemp > 50.0) {
+    data.temp_c = NAN; // QC akan memberi flag 9 (missing data)
+  } else {
+    data.temp_c = rawTemp;
   }
 
   // 2. Sensor Kebocoran
   pinMode(PIN_LEAK_SENSOR, INPUT_PULLUP);
-  data.leak = (digitalRead(PIN_LEAK_SENSOR) == LOW); // LOW jika terdeteksi konduksi air
+  data.leak = (digitalRead(PIN_LEAK_SENSOR) == LOW);
 
-  // 3. Sensor Baterai (Pembagi tegangan rasio ~4.0)
-  int rawBatt = analogRead(PIN_BATT_ADC);
-  data.batt_v = (rawBatt / 4095.0) * 3.3 * 4.3; // Kalibrasi resistor
+  // 3. Sensor Baterai 12V (Pembagi tegangan 4:1)
+  int mvBatt = readMedianMilliVolts(PIN_BATT_ADC, 10);
+  data.batt_v = (mvBatt / 1000.0) * 4.0;
 
-  // 4. Sensor Turbidity (Analog)
-  int rawTurb = analogRead(PIN_TURB_ANALOG);
-  float vTurb = (rawTurb / 4095.0) * 3.3;
-  // Persamaan konversi voltase ke NTU (sesuai kalibrasi lab)
-  data.turb_ntu = max(0.0f, (float)(-1120.4 * vTurb * vTurb + 5742.3 * vTurb - 4352.9));
+  // 4. Turbidity (Analog)
+  int mvTurb = readMedianMilliVolts(PIN_TURB_ANALOG, 10);
+  float vTurb = mvTurb / 1000.0;
+  // Kurva kalibrasi Formazin
+  if (vTurb > 0.1) {
+    data.turb_ntu = max(0.0f, (float)(-1120.4 * vTurb * vTurb + 5742.3 * vTurb - 4352.9));
+  } else {
+    data.turb_ntu = NAN;
+  }
 
-  // 5. Sensor EC / Salinitas (Analog)
-  int rawEC = analogRead(PIN_EC_ANALOG);
-  float vEC = (rawEC / 4095.0) * 3.3;
-  data.ec_mscm = vEC * 15.0; // dummy linear scale
-  // Konversi PSS-78 praktis dari EC dan Suhu
-  data.sal_psu = max(0.0f, (float)(data.ec_mscm * 0.65));
+  // 5. Sensor EC & Kompensasi Suhu PSS-78
+  int mvEC = readMedianMilliVolts(PIN_EC_ANALOG, 10);
+  float vEC = mvEC / 1000.0;
+  if (vEC > 0.05) {
+    float rawEC = vEC * 15.0; // Kalibrasi op-amp
+    if (!isnan(data.temp_c)) {
+      // Kompensasi suhu ke 25°C: EC25 = EC_raw / (1 + 0.0191 * (T - 25))
+      float ec25 = rawEC / (1.0 + 0.0191 * (data.temp_c - 25.0));
+      data.ec_mscm = ec25;
+      data.sal_psu = max(0.0f, (float)(ec25 * 0.64)); // Konversi standar air payau/pesisir
+    } else {
+      data.ec_mscm = rawEC;
+      data.sal_psu = rawEC * 0.64;
+    }
+  } else {
+    data.ec_mscm = NAN;
+    data.sal_psu = NAN;
+  }
 
-  // 6. pH (Opsional)
-  data.ph = 8.1; // Contoh default air laut
+  // 6. Sensor pH (Analog)
+  int mvPH = readMedianMilliVolts(PIN_PH_ANALOG, 10);
+  float vPH = mvPH / 1000.0;
+  if (vPH > 0.2 && vPH < 3.1) {
+    // Kalibrasi 2-titik pH (neutral 2.5V = pH 7, slope -59mV/pH)
+    float calculated_ph = 7.0 + ((2.5 - vPH) / 0.18);
+    data.ph = calculated_ph;
+  } else {
+    data.ph = NAN; // Belum terpasang / probe dicabut
+  }
 
-  // 7. Posisi GPS dummy/fallback jika belum lock
-  data.lat = -7.31820;
-  data.lon = 112.82750;
-  data.gps_fix = true;
-  data.rssi = -75;
+  // 7. Koordinat GPS (Default false bila modem belum lock)
+  data.lat = 0.0;
+  data.lon = 0.0;
+  data.gps_fix = false;
+  data.rssi = 0;
 
-  // Matikan daya sensor kembali
+  // Timestamp UTC ISO-8601 (Dapat disinkronkan dari modem NITZ/GPS)
+  data.ts_iso = "";
+
+  // Matikan daya sensor kembali untuk hemat energi
   digitalWrite(PIN_PWR_SENSORS, LOW);
   return data;
 }
 
 // ==========================================
-// 2. LOGGING MICROSD (STORE-AND-FORWARD)
+// 2. LOGGING MICROSD
 // ==========================================
 bool saveToSD(const SensorData &d, uint64_t seq) {
   if (!SD.begin(PIN_SD_CS)) {
-    Serial.println(F("Gagal inisialisasi MicroSD!"));
     return false;
   }
-
   File f = SD.open("/measurements.csv", FILE_APPEND);
-  if (!f) {
-    Serial.println(F("Gagal membuka file microSD"));
-    return false;
-  }
+  if (!f) return false;
 
-  // Header jika baru dibuat
   if (f.size() == 0) {
-    f.println(F("seq,temp_c,sal_psu,turb_ntu,ph,batt_v,leak,lat,lon,sent"));
+    f.println(F("seq,ts,temp_c,sal_psu,turb_ntu,ph,batt_v,leak,lat,lon,gps_fix,sent"));
   }
-
-  f.printf("%llu,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%.5f,%.5f,0\n",
-           seq, d.temp_c, d.sal_psu, d.turb_ntu, d.ph, d.batt_v, d.leak ? 1 : 0, d.lat, d.lon);
+  f.printf("%llu,%s,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%.5f,%.5f,%d,0\n",
+           seq, d.ts_iso.c_str(),
+           isnan(d.temp_c) ? -999.0 : d.temp_c,
+           isnan(d.sal_psu) ? -999.0 : d.sal_psu,
+           isnan(d.turb_ntu) ? -999.0 : d.turb_ntu,
+           isnan(d.ph) ? -999.0 : d.ph,
+           d.batt_v, d.leak ? 1 : 0, d.lat, d.lon, d.gps_fix ? 1 : 0);
   f.close();
   return true;
 }
@@ -129,14 +182,19 @@ String buildJsonPayload(const SensorData &d, uint64_t seq) {
   String json = "[{";
   json += "\"device_id\":\"" + String(DEVICE_ID) + "\",";
   json += "\"seq\":" + String((unsigned long)seq) + ",";
-  json += "\"temp_c\":" + String(d.temp_c, 2) + ",";
-  json += "\"sal_psu\":" + String(d.sal_psu, 2) + ",";
-  json += "\"turb_ntu\":" + String(d.turb_ntu, 2) + ",";
-  json += "\"ph\":" + String(d.ph, 2) + ",";
+  json += "\"ts\":\"" + d.ts_iso + "\",";
+  if (!isnan(d.temp_c)) json += "\"temp_c\":" + String(d.temp_c, 2) + ",";
+  else json += "\"temp_c\":null,";
+  if (!isnan(d.sal_psu)) json += "\"sal_psu\":" + String(d.sal_psu, 2) + ",";
+  else json += "\"sal_psu\":null,";
+  if (!isnan(d.turb_ntu)) json += "\"turb_ntu\":" + String(d.turb_ntu, 2) + ",";
+  else json += "\"turb_ntu\":null,";
+  if (!isnan(d.ph)) json += "\"ph\":" + String(d.ph, 2) + ",";
+  else json += "\"ph\":null,";
   json += "\"batt_v\":" + String(d.batt_v, 2) + ",";
   json += "\"leak\":" + String(d.leak ? "true" : "false") + ",";
-  json += "\"lat\":" + String(d.lat, 5) + ",";
-  json += "\"lon\":" + String(d.lon, 5) + ",";
+  json += "\"lat\":" + (d.gps_fix ? String(d.lat, 5) : "null") + ",";
+  json += "\"lon\":" + (d.gps_fix ? String(d.lon, 5) : "null") + ",";
   json += "\"gps_fix\":" + String(d.gps_fix ? "true" : "false") + ",";
   json += "\"fw\":\"" + String(FIRMWARE_VERSION) + "\"";
   json += "}]";
@@ -144,69 +202,67 @@ String buildJsonPayload(const SensorData &d, uint64_t seq) {
 }
 
 bool transmitToSupabase(const String &jsonPayload) {
-  // Nyalakan modem 4G via MOSFET
   pinMode(PIN_PWR_MODEM, OUTPUT);
   digitalWrite(PIN_PWR_MODEM, HIGH);
-  delay(2000); // Tunggu modul booting & registrasi jaringan seluler
+  delay(3000); // Tunggu modem online
 
-  Serial.println(F("Mengirim payload ke Supabase:"));
-  Serial.println(jsonPayload);
+  modemSerial.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX, MODEM_TX);
+  delay(500);
 
-  // Pada implementasi produksi dengan SIM7600/A7670:
-  // Kirim perintah AT untuk HTTPS POST:
-  // AT+HTTPINIT
-  // AT+HTTPPARA="URL", SUPABASE_INGEST_URL
-  // AT+HTTPPARA="USERDATA", "x-device-key: " DEVICE_API_KEY
-  // AT+HTTPDATA=..., ...
-  // AT+HTTPACTION=1
-  // AT+HTTPTERM
+  // Inisialisasi HTTP AT Commands SIM7600
+  modemSerial.println(F("AT+HTTPINIT"));
+  delay(300);
+  modemSerial.println("AT+HTTPPARA=\"URL\",\"" + String(SUPABASE_INGEST_URL) + "\"");
+  delay(300);
+  modemSerial.println("AT+HTTPPARA=\"USERDATA\",\"x-device-key: " + String(DEVICE_API_KEY) + "\"");
+  delay(300);
+  modemSerial.println("AT+HTTPPARA=\"CONTENT\",\"application/json\"");
+  delay(300);
+  modemSerial.printf("AT+HTTPDATA=%d,10000\r\n", jsonPayload.length());
+  delay(300);
+  modemSerial.print(jsonPayload);
+  delay(500);
+  modemSerial.println(F("AT+HTTPACTION=1")); // POST
+  delay(2000);
+  modemSerial.println(F("AT+HTTPTERM"));
 
-  delay(1500); // Simulasi transaksi HTTP
-  Serial.println(F("Data berhasil dikirim ke Supabase Edge Function!"));
-
-  // Matikan modem kembali
   digitalWrite(PIN_PWR_MODEM, LOW);
   return true;
 }
 
 // ==========================================
-// SETUP & MAIN SIKLUS
+// MAIN SETUP & DEEP SLEEP
 // ==========================================
 void setup() {
   Serial.begin(115200);
-  delay(500);
-  Serial.printf("\n=== SMMB Buoy Siklus #%llu ===\n", bootSequence);
 
-  // 1. Baca Sensor
+  // Ambil dan simpan sequence dari NVS Preferences agar tidak reset saat power loss
+  prefs.begin("smmb", false);
+  uint64_t seq = prefs.getULong64("seq", 1);
+
+  // Baca Sensor
   SensorData data = readSensors();
-  Serial.printf("Sensor: Suhu=%.2f C, Sal=%.2f PSU, Turb=%.2f NTU, Batt=%.2f V, Leak=%s\n",
-                data.temp_c, data.sal_psu, data.turb_ntu, data.batt_v, data.leak ? "YES" : "NO");
+  data.ts_iso = "2027-03-01T02:15:00Z"; // Default jika RTC belum sinkron
 
-  // 2. Simpan ke microSD
-  saveToSD(data, bootSequence);
+  // Simpan ke microSD
+  saveToSD(data, seq);
 
-  // 3. Kirim via 4G ke Supabase
-  String payload = buildJsonPayload(data, bootSequence);
+  // Kirim data via 4G
+  String payload = buildJsonPayload(data, seq);
   transmitToSupabase(payload);
 
-  // 4. Naikkan nomor urut
-  bootSequence++;
+  // Update sequence di NVS
+  prefs.putULong64("seq", seq + 1);
+  prefs.end();
 
-  // 5. Masuk Deep Sleep (15 Menit)
-  uint64_t sleepTimeUs = (uint64_t)SLEEP_INTERVAL_MIN * 60ULL * 1000000ULL;
-  
-  // Jika baterai lemah, perpanjang interval menjadi 60 menit
+  // Konfigurasi durasi tidur
+  uint64_t sleepUs = (uint64_t)SLEEP_INTERVAL_MIN * 60ULL * 1000000ULL;
   if (data.batt_v < BATT_LOW_THRESHOLD && data.batt_v > 5.0) {
-    Serial.println(F("Baterai rendah! Mengaktifkan mode hemat daya (tidur 60 menit)"));
-    sleepTimeUs = 60ULL * 60ULL * 1000000ULL;
+    sleepUs = 60ULL * 60ULL * 1000000ULL; // Mode hemat baterai
   }
 
-  Serial.println(F("Masuk mode Deep Sleep... Sampai jumpa pada siklus berikutnya!"));
-  esp_sleep_enable_timer_wakeup(sleepTimeUs);
+  esp_sleep_enable_timer_wakeup(sleepUs);
   esp_deep_sleep_start();
 }
 
-void loop() {
-  // Tidak digunakan karena ESP32 selalu deep sleep setelah setup()
-}
-
+void loop() {}

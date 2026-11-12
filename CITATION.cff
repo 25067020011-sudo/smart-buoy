@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this software or data in your research, please cite it as below."
+authors:
+  - family-names: "ITS Marine Technology Team"
+    given-names: "SMMB Project"
+title: "Smart Marine Monitoring Buoy (SMMB) - IoT & Coastal Water Quality Monitoring System"
+version: 1.1.0
+date-released: 2026-11-11
+url: "https://github.com/25067020011-sudo/smart-buoy"
+repository-code: "https://github.com/25067020011-sudo/smart-buoy"
+keywords:
+  - marine technology
+  - oceanography
+  - iot
+  - water quality
+  - environmental monitoring

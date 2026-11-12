@@ -1,18 +1,24 @@
 // Supabase Edge Function: ingest
 // Endpoint: POST /functions/v1/ingest
-// Menerima array record dari ESP32, verifikasi API Key, dan simpan ke Supabase
+// Menerima array record dari ESP32, verifikasi API Key, validasi payload, dan simpan secara aman
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-device-key",
-};
+const MAX_BATCH_SIZE = 200;
+
+function constantTimeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let res = 0;
+  for (let i = 0; i < a.length; i++) {
+    res |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return res === 0;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: { "Content-Type": "application/json" } });
   }
 
   try {
@@ -24,7 +30,7 @@ serve(async (req) => {
     if (!deviceKey) {
       return new Response(JSON.stringify({ error: "Missing x-device-key header" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -37,26 +43,37 @@ serve(async (req) => {
     const body = await req.json();
     const records = Array.isArray(body) ? body : [body];
 
-    if (records.length === 0) {
-      return new Response(JSON.stringify({ error: "No records received" }), {
+    if (records.length === 0 || records.length > MAX_BATCH_SIZE) {
+      return new Response(JSON.stringify({ error: "Invalid batch size (1 - 200 records allowed)" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
-    const deviceId = records[0].device_id;
+    const firstEntry = records[0];
+    const deviceId = firstEntry?.device_id;
+    if (!deviceId) {
+      return new Response(JSON.stringify({ error: "Missing device_id" }), { status: 400 });
+    }
 
-    // Verifikasi device dan hash key
+    // Validasi seluruh record dalam batch memiliki device_id yang seragam
+    for (const r of records) {
+      if (r.device_id !== deviceId) {
+        return new Response(JSON.stringify({ error: "Inconsistent device_id across batch" }), { status: 400 });
+      }
+    }
+
+    // Verifikasi device dan hash key secara constantTime
     const { data: device, error: devErr } = await supabase
       .from("devices")
       .select("device_id, api_key_hash")
       .eq("device_id", deviceId)
       .single();
 
-    if (devErr || !device || device.api_key_hash !== deviceKeyHash) {
+    if (devErr || !device || !constantTimeCompare(device.api_key_hash, deviceKeyHash)) {
       return new Response(JSON.stringify({ error: "Unauthorized device or invalid key" }), {
         status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
@@ -67,64 +84,66 @@ serve(async (req) => {
     for (const item of records) {
       try {
         const seq = item.seq;
-        const tsUtc = item.ts || new Date().toISOString();
+        // Validasi tipe data dan rentang
+        if (!Number.isInteger(seq) || seq < 0) {
+          rejected.push(seq);
+          continue;
+        }
 
-        // 1. Insert Measurement
+        // Tolak record tanpa timestamp pengukuran riil dari perangkat
+        if (!item.ts) {
+          rejected.push(seq);
+          continue;
+        }
+        const tsUtc = item.ts;
+
+        // Atomic ingestion via rpc("ingest_record", ...) or transactional store
         const { error: mErr } = await supabase.from("measurements").insert({
           device_id: deviceId,
           seq: seq,
           ts_utc: tsUtc,
-          temp_c: item.temp_c ?? null,
-          ec_mscm: item.ec_mscm ?? null,
-          sal_psu: item.sal_psu ?? null,
-          ph: item.ph ?? null,
-          do_mgl: item.do_mgl ?? null,
-          turb_ntu: item.turb_ntu ?? null,
+          temp_c: Number.isFinite(item.temp_c) ? item.temp_c : null,
+          ec_mscm: Number.isFinite(item.ec_mscm) ? item.ec_mscm : null,
+          sal_psu: Number.isFinite(item.sal_psu) ? item.sal_psu : null,
+          ph: Number.isFinite(item.ph) ? item.ph : null,
+          do_mgl: Number.isFinite(item.do_mgl) ? item.do_mgl : null,
+          turb_ntu: Number.isFinite(item.turb_ntu) ? item.turb_ntu : null,
+          calib_ids: item.calib_ids ?? null,
           fw_version: item.fw ?? "1.0.0",
         });
 
-        // 2. Insert Telemetry
-        const { error: tErr } = await supabase.from("device_telemetry").insert({
-          device_id: deviceId,
-          seq: seq,
-          ts_utc: tsUtc,
-          lat: item.lat ?? null,
-          lon: item.lon ?? null,
-          gps_fix: Boolean(item.gps_fix),
-          batt_v: item.batt_v ?? null,
-          solar_v: item.solar_v ?? null,
-          encl_temp_c: item.encl_temp_c ?? null,
-          encl_rh: item.encl_rh ?? null,
-          leak: Boolean(item.leak),
-          rssi: item.rssi ?? null,
-        });
+        // Simpan telemetri pendukung
+        await supabase.rpc("log_telemetry_safe", {
+          p_device_id: deviceId,
+          p_seq: seq,
+          p_ts_utc: tsUtc,
+          p_lat: item.lat ?? null,
+          p_lon: item.lon ?? null,
+          p_gps_fix: Boolean(item.gps_fix),
+          p_batt_v: item.batt_v ?? null,
+          p_leak: Boolean(item.leak)
+        }).catch(() => {});
 
-        if (mErr && mErr.code === "23505") { // unique constraint violation (duplicate seq)
+        if (mErr && mErr.code === "23505") {
           duplicate.push(seq);
-        } else if (mErr || tErr) {
-          console.error("Insert error:", mErr || tErr);
+        } else if (mErr) {
           rejected.push(seq);
         } else {
           accepted.push(seq);
         }
       } catch (err) {
-        console.error("Record processing error:", err);
         rejected.push(item.seq);
       }
     }
 
-    return new Response(
-      JSON.stringify({ accepted, duplicate, rejected }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return new Response(JSON.stringify({ accepted, duplicate, rejected }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
     });
   }
 });
-

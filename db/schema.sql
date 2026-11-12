@@ -244,7 +244,40 @@ drop trigger if exists trg_measurements_qc on measurements;
 create trigger trg_measurements_qc before insert on measurements
 for each row execute function measurements_qc_gross_range();
 
+-- QARTOD tests evaluation logic: 'spike', 'rate_of_change', 'flat_line'
+-- Job pg_cron untuk mendeteksi alarm 'no_data' jika buoy terhenti > 60 menit
+-- select cron.schedule('check-no-data', '*/15 * * * *', $$
+--   insert into alerts (device_id, type, message)
+--   select d.device_id, 'no_data', 'Data terhenti > 60 menit' from devices d
+--   where d.status = 'deployed' and not exists (
+--     select 1 from measurements m where m.device_id = d.device_id and m.received_at > now() - interval '60 minutes'
+--   ) on conflict do nothing;
+-- $$);
+
 -- 4. VIEWS
+alter table profiles enable row level security;
+alter table devices enable row level security;
+alter table sensors enable row level security;
+alter table calibrations enable row level security;
+alter table measurements enable row level security;
+alter table device_telemetry enable row level security;
+alter table field_visits enable row level security;
+alter table reference_measurements enable row level security;
+alter table qc_thresholds enable row level security;
+alter table alerts enable row level security;
+
+-- Policies
+create policy "Allow read measurements" on measurements for select using (true);
+create policy "Allow read telemetry" on device_telemetry for select using (true);
+create policy "Allow read devices" on devices for select using (true);
+create policy "Allow read alerts" on alerts for select using (true);
+create policy "Allow read field visits" on field_visits for select using (true);
+create policy "Allow read reference measurements" on reference_measurements for select using (true);
+create policy "Allow read calibrations" on calibrations for select using (true);
+create policy "Allow read sensors" on sensors for select using (true);
+create policy "Allow read qc thresholds" on qc_thresholds for select using (true);
+
+-- 5. VIEWS
 
 create or replace view v_public_measurements as
 select m.device_id, m.ts_utc, m.temp_c, m.sal_psu, m.ph, m.do_mgl, m.turb_ntu,
@@ -277,23 +310,30 @@ from reference_measurements r
 join field_visits v using (visit_id)
 join measurements m on m.id = r.matched_measurement_id;
 
--- 5. INITIAL SEED DATA FOR TESTING
+-- 6. MATCHING FUNCTION (Referensi vs Sensor)
+create or replace function match_reference_measurements()
+returns trigger language plpgsql as $$
+declare
+  target_id bigint;
+begin
+  select id into target_id
+  from measurements
+  where device_id = (select device_id from field_visits where visit_id = new.visit_id)
+    and abs(extract(epoch from (ts_utc - new.measured_at))) <= 450 -- dalam toleransi +- 7.5 menit
+  order by abs(extract(epoch from (ts_utc - new.measured_at))) asc
+  limit 1;
 
-insert into devices (device_id, name, status, anchor_lat, anchor_lon, geofence_m, interval_min, batt_low_v, api_key_hash)
-values (
-  'SMMB-01',
-  'Buoy Wonorejo ITS',
-  'deployed',
-  -7.31820,
-  112.82750,
-  50,
-  15,
-  11.80,
-  '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8' -- 'secret123' sha256
-) on conflict (device_id) do update set
-  anchor_lat = excluded.anchor_lat,
-  anchor_lon = excluded.anchor_lon;
+  new.matched_measurement_id := target_id;
+  return new;
+end $$;
 
+drop trigger if exists trg_match_reference on reference_measurements;
+create trigger trg_match_reference
+before insert on reference_measurements
+for each row execute function match_reference_measurements();
+
+-- 7. INITIAL QC THRESHOLDS CONFIGURATION
+-- Catatan: Perangkat dan kunci API didaftarkan via antarmuka admin / script provisi (tools/provision_device.py)
 insert into qc_thresholds (device_id, parameter, test, params) values
   ('SMMB-01', 'temp',      'gross_range', '{"min":20,"max":40}'),
   ('SMMB-01', 'ec',        'gross_range', '{"min":0,"max":70}'),
