@@ -30,8 +30,10 @@ smart-buoy/
 │   └── test_smmb.py         # Unit test metrik DQA dan validasi simulator
 ├── docs/                    # Dokumentasi Teknis & SOP
 │   ├── PRD_v1.0.md          # Dokumen PRD Awal (Draft 1.0)
+│   ├── PRD_v1.1.md          # Dokumen PRD Revisi Lengkap (v1.1)
 │   ├── WIRING_DIAGRAM.md    # Skema perkabelan pinout, MOSFET load switch, dan voltage divider
-│   └── SOP_CALIBRATION.md   # Prosedur kalibrasi 3-titik dan validasi berkala
+│   ├── SOP_CALIBRATION.md   # Prosedur kalibrasi 3-titik dan validasi berkala
+│   └── AUDIT_REPO_PENDUKUNG.md # Audit 10 repositori open-source pendukung riset
 ├── CITATION.cff             # Metadata sitasi karya ilmiah
 ├── LICENSE                  # Lisensi Open Source (MIT)
 └── README.md
@@ -69,6 +71,15 @@ streamlit run app.py
 ```bash
 pytest tests/
 ```
+
+## 📚 Repositori Pendukung & Code Availability
+
+Riset ini memanfaatkan 10 pustaka open-source pendukung dengan versi commit terkunci untuk reproduktibilitas ilmiah:
+* **Quality Control & Analisis Oseanografi:** `ioos/ioos_qc` (QARTOD v3.1.1), `TEOS-10/GSW-Python` (PSS-78), `wesleybowman/UTide` (Analisis Pasang Surut), `ioos/erddapy` (Match-up data NOAA).
+* **Sensor & Hardware:** `OceanographyforEveryone/OpenCTD`, `Atlas-Scientific/Ezo_I2c_lib`, `DFRobot/DFRobot_PH`.
+* **Platform Cloud & Penginderaan Jauh:** `supabase/supabase` (PostgreSQL/RLS), `streamlit/streamlit` (Dashboard), `sentinel-hub/sentinelhub-py` (Validasi Kekeruhan Sentinel-2).
+
+Rincian lisensi, commit hash, dan format sitasi naskah dapat dilihat di [docs/AUDIT_REPO_PENDUKUNG.md](docs/AUDIT_REPO_PENDUKUNG.md).
 
 ---
 
